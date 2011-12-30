@@ -1,0 +1,186 @@
+<html>
+<head>
+<link rel="stylesheet" href="bootstrap.min.css">
+<script src="../lib/jquery-1.6.3.min.js" type="text/javascript" language="javascript" charset="utf-8"></script>
+<script src="../lib/knockout-2.0.0.js" type="text/javascript" language="javascript" charset="utf-8"></script>
+<script type="text/javascript" language="javascript" charset="utf-8">
+       </script>
+<style type="text/css" media="screen">
+       /* <![CDATA[ */
+           .time {
+            font-size:0.8em;
+            display:inline-block;
+            overflow:hidden;
+           white-space:nowrap;
+           }
+           .time:hover {
+            display:inline-block;
+            width:auto;
+           }
+           body {
+            padding-top:40px;
+           }
+           .toggle_log {
+            position:relative;
+            top:-0.5em;
+            margin-left:1em;
+           }
+           
+       /* ]]> */
+</style>
+<title>LogWatcher</title>
+<script type="text/javascript">
+      // <![CDATA[
+     $(function () {
+         var ws_uri = "ws://localhost:9000";
+         
+         filewatcher = {};
+         
+         filewatcher.connection = function() {
+             if ("WebSocket" in window) {
+                 filewatcher.webSocket = new WebSocket(ws_uri);
+             } else {
+                 // Firefox 7/8 currently prefixes the WebSocket object
+                 filewatcher.webSocket = new MozWebSocket(ws_uri);
+             }
+            console.log("connection trial");
+                
+             filewatcher.webSocket.onmessage = function (e) {
+                 data = JSON.parse(e.data)
+                 if (data["type"] == "msg") {
+                     updateData(data);
+                 } else console.log(data["msg"])
+             }
+             
+             filewatcher.webSocket.onopen = function () {
+                console.log("connected");
+                $("#connection_status").text("connected");
+                $("#before_connection").hide();
+                $("#after_connection").show();
+                clearInterval(filewatcher.timer);
+             };
+             
+             filewatcher.webSocket.onclose = function () {
+                console.log("disconnected");
+                $("#connection_status").text("disconnected");
+                $("#after_connection").hide();
+                $("#before_connection").show();
+                clearInterval(filewatcher.timer)
+                filewatcher.timer = setInterval("filewatcher.connection()", 1000); 
+             };
+        }
+        
+        filewatcher.connection();
+        
+         window.onbeforeunload = function() {
+            filewatcher.webSocket.onclose = function() {}
+            filewatcher.webSocket.close();
+        };
+         
+         var updateData = function (data) {
+                 html =  "<span class='time'>" + new Date().toLocaleTimeString() + "</span> "
+                 html += ": <span>" + data["line"] + "</span><br>"
+                 
+                 log_content = "#file_" + data["file"].replace(".", "") + " .log_content" 
+                 console.log(log_content, html)
+                 console.log("youhou")
+                 $(log_content).append(html)
+         };
+         var File = function (name, fp) {
+                 this.name = name;
+                 this.fp = fp
+                 this.isWatched = ko.observable(false);
+                 
+                 this.watched = function () {
+                     this.isWatched(true);
+                     msg = JSON.stringify({
+                         "watch": this.fp
+                     });
+                     webSocket.send(msg);
+                 }.bind(this)
+                 
+                 this.unwatched = function () {
+                     this.isWatched(false);
+                     msg = JSON.stringify({
+                         "unwatch": this.fp
+                     })
+                     webSocket.send(msg);
+                 }.bind(this)
+                 this.toggleWatch = function () {
+                     if (this.isWatched()) 
+                        this.unwatched();
+                     else this.watched();
+                     return true;
+                 }
+         }
+
+         //filewatcher.files = [["ho","log1.txt"]];
+         filewatcher.files = []
+         filewatcher.vM = {
+             files: ko.observableArray(),
+             fileToAddName : ko.observable(""),  
+             fileToAddFilepath : ko.observable(""),  
+             addFile : function() {
+                if (this.fileToAddFilepath() != "" && this.fileToAddName() != "") {
+                    this.files.push(new File(this.fileToAddName(), this.fileToAddFilepath())); // Adds the item. Writing to the "items" observableArray causes any associated UI to update.
+                    this.fileToAddName(""); // Clears the text box, because it's bound to the "itemToAdd" observable
+                    this.fileToAddFilepath(""); // Clears the text box, because it's bound to the "itemToAdd" observable
+                }
+             }        
+         };
+         $.each(filewatcher.files, function (i, file) {
+             filewatcher.vM.files.push(new File(file[0], file[1]));
+         });
+         ko.applyBindings(filewatcher.vM); // This makes Knockout get to work
+         $(".toggle_log").live("click", function () {
+             $(this).parent().parent().find(".log_content").toggle();
+         });
+    
+     });
+      // ]]>
+</script>
+</head>
+<body>
+<div class="container">
+	<div class="topbar">
+		<div class="topbar-inner">
+			<div class="container">
+				<a class="brand">LogWatcher</a>
+			    <div id="connection_status">
+			    </div>
+			</div>
+		</div>
+	</div>
+	<div id="before_connection">
+	    The connection to the server could not be established.
+	</div>
+	<div id="after_connection">
+	    <table id="files" class="zebra-striped bordered-table">
+	    <tr>
+		    <th>Filename</th>
+		    <th>Watch</th>
+		    <th>Filepath</th>
+	    </tr>
+	    <tbody data-bind="foreach: files">
+	    <tr>
+		    <td><span data-bind="text: name" class="name"></span></td>
+		    <td><input type="checkbox" data-bind="checked: isWatched(), click: toggleWatch"/></td>
+		    <td><span data-bind="text: fp" class="help-inline"></span></td>
+	    </tr>
+	    </tbody>
+	    </table>
+	    <form data-bind="submit: addFile">
+	        Name : <input data-bind='value: fileToAddName, valueUpdate: "afterkeydown"' />
+	        Filepath : <input data-bind='value: fileToAddFilepath, valueUpdate: "afterkeydown"' />
+            <button class="btn" type="submit" data-bind="enable: ( fileToAddName().length && fileToAddFilepath().length )">Add</button>
+        </form>
+	    <div data-bind="foreach: files">
+		    <div class="well" data-bind="visible: isWatched(), attr: { id: 'file_' + fp.replace('.','') } ">
+			    <h2><span data-bind="text: name"></span><button class="btn small toggle_log">toggle</button></h2>
+			    <div class="log_content"></div>
+		    </div>
+	    </div>
+    </div>
+</div>
+</body>
+</html>
