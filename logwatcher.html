@@ -18,7 +18,7 @@
             width:auto;
            }
            body {
-            padding-top:40px;
+            padding-top:60px;
            }
            .toggle_log {
             position:relative;
@@ -82,8 +82,6 @@
                  html += ": <span>" + data["line"] + "</span><br>"
                  
                  log_content = "#file_" + data["file"].replace(".", "") + " .log_content" 
-                 console.log(log_content, html)
-                 console.log("youhou")
                  $(log_content).append(html)
          };
          var File = function (name, fp) {
@@ -96,7 +94,7 @@
                      msg = JSON.stringify({
                          "watch": this.fp
                      });
-                     webSocket.send(msg);
+                     filewatcher.webSocket.send(msg);
                  }.bind(this)
                  
                  this.unwatched = function () {
@@ -104,7 +102,7 @@
                      msg = JSON.stringify({
                          "unwatch": this.fp
                      })
-                     webSocket.send(msg);
+                     filewatcher.webSocket.send(msg);
                  }.bind(this)
                  this.toggleWatch = function () {
                      if (this.isWatched()) 
@@ -152,10 +150,20 @@
 		</div>
 	</div>
 	<div id="before_connection">
-	    The connection to the server could not be established.
+	    <p>The connection to the server could not be established.</p>
 	</div>
 	<div id="after_connection">
-	    <table id="files" class="zebra-striped bordered-table">
+	    <div data-bind="visible: files().length == 0">
+	        <p>
+	            There is no file to watch yet. You can had a file with the form below.
+	        </p>
+	    </div>
+	    <form data-bind="submit: addFile">
+	        Name : <input data-bind='value: fileToAddName, valueUpdate: "afterkeydown"' placeholder="MyBeautifulFile"/>
+	        Filepath : <input data-bind='value: fileToAddFilepath, valueUpdate: "afterkeydown"' placeholder="/path/to/my/file.txt or ./file.txt"/>
+            <button class="btn" type="submit" data-bind="enable: ( fileToAddName().length && fileToAddFilepath().length )">Add</button>
+        </form>
+	    <table id="files" class="zebra-striped bordered-table" data-bind="visible: files().length > 0">
 	    <tr>
 		    <th>Filename</th>
 		    <th>Watch</th>
@@ -169,11 +177,6 @@
 	    </tr>
 	    </tbody>
 	    </table>
-	    <form data-bind="submit: addFile">
-	        Name : <input data-bind='value: fileToAddName, valueUpdate: "afterkeydown"' />
-	        Filepath : <input data-bind='value: fileToAddFilepath, valueUpdate: "afterkeydown"' />
-            <button class="btn" type="submit" data-bind="enable: ( fileToAddName().length && fileToAddFilepath().length )">Add</button>
-        </form>
 	    <div data-bind="foreach: files">
 		    <div class="well" data-bind="visible: isWatched(), attr: { id: 'file_' + fp.replace('.','') } ">
 			    <h2><span data-bind="text: name"></span><button class="btn small toggle_log">toggle</button></h2>
