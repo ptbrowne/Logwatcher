@@ -20,11 +20,6 @@
            body {
             padding-top:60px;
            }
-           .toggle_log {
-            position:relative;
-            top:-0.5em;
-            margin-left:1em;
-           }
            
        /* ]]> */
 </style>
@@ -47,8 +42,9 @@
                 
              filewatcher.webSocket.onmessage = function (e) {
                  data = JSON.parse(e.data)
+                 console.log(data)
                  if (data["type"] == "msg") {
-                     updateData(data);
+                     filewatcher.vM.addNewLine(data["line"], data["file"])
                  } else console.log(data["msg"])
              }
              
@@ -76,18 +72,21 @@
             filewatcher.webSocket.onclose = function() {}
             filewatcher.webSocket.close();
         };
+
+        var NewLine = function(newline) {
+            this.newline = newline;
+            this._timestamp = new Date();
+
+            this.timestamp = function() {
+                return this._timestamp;
+            }
+        }
          
-         var updateData = function (data) {
-                 html =  "<span class='time'>" + new Date().toLocaleTimeString() + "</span> "
-                 html += ": <span>" + data["line"] + "</span><br>"
-                 
-                 log_content = "#file_" + data["file"].replace(".", "") + " .log_content" 
-                 $(log_content).append(html)
-         };
          var File = function (name, fp) {
                  this.name = name;
                  this.fp = fp
-                 this.isWatched = ko.observable(false);
+                 this.isWatched = ko.observable(true);
+                 this.newlines = ko.observableArray();
                  
                  this.watched = function () {
                      this.isWatched(true);
@@ -104,6 +103,7 @@
                      })
                      filewatcher.webSocket.send(msg);
                  }.bind(this)
+                 
                  this.toggleWatch = function () {
                      if (this.isWatched()) 
                         this.unwatched();
@@ -112,27 +112,30 @@
                  }
          }
 
-         //filewatcher.files = [["ho","log1.txt"]];
          filewatcher.files = []
          filewatcher.vM = {
              files: ko.observableArray(),
+             filesByPath : {},
              fileToAddName : ko.observable(""),  
              fileToAddFilepath : ko.observable(""),  
              addFile : function() {
                 if (this.fileToAddFilepath() != "" && this.fileToAddName() != "") {
-                    this.files.push(new File(this.fileToAddName(), this.fileToAddFilepath())); // Adds the item. Writing to the "items" observableArray causes any associated UI to update.
+                    var f = new File(this.fileToAddName(), this.fileToAddFilepath());
+                    this.filesByPath[this.fileToAddFilepath()] = f;
+                    this.files.push(f); // Adds the item. Writing to the "items" observableArray causes any associated UI to update.
                     this.fileToAddName(""); // Clears the text box, because it's bound to the "itemToAdd" observable
                     this.fileToAddFilepath(""); // Clears the text box, because it's bound to the "itemToAdd" observable
                 }
-             }        
+             },
+             addNewLine : function(newline, filepath) {
+                this.filesByPath[filepath].newlines.push(NewLine(newline));
+             } 
          };
          $.each(filewatcher.files, function (i, file) {
+
              filewatcher.vM.files.push(new File(file[0], file[1]));
          });
          ko.applyBindings(filewatcher.vM); // This makes Knockout get to work
-         $(".toggle_log").live("click", function () {
-             $(this).parent().parent().find(".log_content").toggle();
-         });
     
      });
       // ]]>
@@ -179,8 +182,15 @@
 	    </table>
 	    <div data-bind="foreach: files">
 		    <div class="well" data-bind="visible: isWatched(), attr: { id: 'file_' + fp.replace('.','') } ">
-			    <h2><span data-bind="text: name"></span><button class="btn small toggle_log">toggle</button></h2>
-			    <div class="log_content"></div>
+			    <h2><span data-bind="text: name"></span></h2>
+			    <div class="log_content">
+                    <div data-bind="foreach: newlines">
+                        <div>
+                            <span class="time" data-bind="text: timestamp()"></span>
+                            <span class="modif" data-bind="text: newline"></span>
+                        </div>
+                    </div>
+                </div>
 		    </div>
 	    </div>
     </div>
